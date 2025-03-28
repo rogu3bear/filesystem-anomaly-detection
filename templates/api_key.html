@@ -1,0 +1,125 @@
+{% extends "layout.html" %}
+
+{% block title %}API Key Management{% endblock %}
+
+{% block content %}
+<div class="container my-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0"><i class="bi bi-key"></i> API Key Management</h4>
+                </div>
+                <div class="card-body">
+                    {% if success %}
+                    <div class="alert alert-success" role="alert">
+                        <i class="bi bi-check-circle"></i> API key operation completed successfully!
+                    </div>
+                    {% endif %}
+                    
+                    {% if error %}
+                    <div class="alert alert-danger" role="alert">
+                        <i class="bi bi-exclamation-triangle"></i> Error: {{ error }}
+                    </div>
+                    {% endif %}
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="card mb-3">
+                                <div class="card-header bg-light">
+                                    <h5 class="mb-0">Your API Key</h5>
+                                </div>
+                                <div class="card-body">
+                                    {% if api_key %}
+                                        <div class="mb-3">
+                                            <label for="current-api-key" class="form-label">Current API Key</label>
+                                            <div class="input-group">
+                                                <input type="text" class="form-control" id="current-api-key" 
+                                                       value="••••••••••••••••••••••" readonly>
+                                                <button class="btn btn-outline-secondary" type="button" 
+                                                        id="show-api-key-btn" title="Show API Key"
+                                                        onclick="toggleVisibility(
+                                                            document.getElementById('current-api-key'),
+                                                            '••••••••••••••••••••••',
+                                                            '{{ api_key }}',
+                                                            this
+                                                        )"
+                                                        aria-label="Toggle API key visibility">
+                                                    <i class="bi bi-eye"></i>
+                                                </button>
+                                                <button class="btn btn-outline-secondary" type="button"
+                                                        id="copy-api-key-btn" title="Copy to Clipboard"
+                                                        onclick="copyToClipboard('{{ api_key }}', this)"
+                                                        aria-label="Copy API key to clipboard">
+                                                    <i class="bi bi-clipboard"></i>
+                                                </button>
+                                            </div>
+                                            <div class="form-text">This is your secret key. Do not share it with others.</div>
+                                        </div>
+                                        
+                                        <form method="POST" action="/api-key/regenerate" onsubmit="return confirm('Are you sure you want to regenerate your API key? The current key will be invalidated.');">
+                                            <button type="submit" class="btn btn-warning">
+                                                <i class="bi bi-arrow-repeat"></i> Regenerate API Key
+                                            </button>
+                                        </form>
+                                    {% else %}
+                                        <p>You don't have an API key yet.</p>
+                                        <form method="POST" action="/api-key/generate">
+                                            <button type="submit" class="btn btn-primary">
+                                                <i class="bi bi-plus-circle"></i> Generate API Key
+                                            </button>
+                                        </form>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header bg-light">
+                                    <h5 class="mb-0">API Usage Information</h5>
+                                </div>
+                                <div class="card-body">
+                                    <p>Use your API key to access the File Organizer API. The key must be provided in the <code>X-API-Key</code> header for all API requests.</p>
+                                    
+                                    <h6 class="mt-3">Example request:</h6>
+                                    <div class="code-block p-3 bg-light rounded mb-3">
+                                        <pre class="mb-0"><code>curl -X POST \
+  {{ request.host_url }}api/organize \
+  -H 'Content-Type: application/json' \
+  -H 'X-API-Key: YOUR_API_KEY' \
+  -d '{
+    "file_path": "/path/to/file.pdf",
+    "destination": "/path/to/output"
+}'</code></pre>
+                                    </div>
+                                    
+                                    <h6>API Endpoints:</h6>
+                                    <ul class="list-group">
+                                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                                            <code>GET /api/health</code>
+                                            <span class="badge bg-success">Public</span>
+                                        </li>
+                                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                                            <code>POST /api/organize</code>
+                                            <span class="badge bg-danger">Protected</span>
+                                        </li>
+                                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                                            <code>GET /api/config</code>
+                                            <span class="badge bg-danger">Protected</span>
+                                        </li>
+                                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                                            <code>POST /api/config</code>
+                                            <span class="badge bg-danger">Protected</span>
+                                        </li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

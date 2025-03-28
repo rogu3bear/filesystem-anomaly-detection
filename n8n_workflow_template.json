@@ -1,0 +1,254 @@
+{
+  "name": "File Organizer Agent",
+  "nodes": [
+    {
+      "parameters": {
+        "filePath": "={{ $json.folderPath }}"
+      },
+      "name": "Watch Folder",
+      "type": "n8n-nodes-base.watchFolder",
+      "typeVersion": 1,
+      "position": [
+        250,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.FILE_ORGANIZER_API_URL }}/organize",
+        "authentication": "headerAuth",
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "={{ $env.FILE_ORGANIZER_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "config",
+              "value": "={\n  \"source_directory\": \"{{ $json.path }}\",\n  \"organize_by\": \"{{ $env.FILE_ORGANIZER_METHOD || 'extension' }}\"\n}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Organize Files",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [
+        450,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.status }}",
+              "value2": "success"
+            }
+          ]
+        }
+      },
+      "name": "Success?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        650,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.NOTIFICATION_WEBHOOK_URL || '' }}",
+        "authentication": "none",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "message",
+              "value": "File organization completed successfully!\n\nStats:\n- Files processed: {{ $json.result.files_processed }}\n- Files moved: {{ $json.result.files_moved }}\n- Files skipped: {{ $json.result.files_skipped }}\n- Errors: {{ $json.result.errors }}\n- Time taken: {{ Math.round($json.result.elapsed_time) }} seconds"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Send Success Notification",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [
+        850,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.NOTIFICATION_WEBHOOK_URL || '' }}",
+        "authentication": "none",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "message",
+              "value": "Error organizing files: {{ $json.error }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Send Error Notification",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [
+        850,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "fields": {
+          "values": [
+            {
+              "name": "folderPath",
+              "stringValue": "={{ $env.WATCH_FOLDER }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Initialize",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [
+        50,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Initialize": {
+      "main": [
+        [
+          {
+            "node": "Watch Folder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Watch Folder": {
+      "main": [
+        [
+          {
+            "node": "Organize Files",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Organize Files": {
+      "main": [
+        [
+          {
+            "node": "Success?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Success?": {
+      "main": [
+        [
+          {
+            "node": "Send Success Notification",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Error Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": false,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": "",
+    "saveExecutionProgress": false,
+    "saveDataErrorExecution": "all"
+  },
+  "tags": [
+    {
+      "name": "automation"
+    },
+    {
+      "name": "files"
+    }
+  ],
+  "pinData": {},
+  "staticData": {},
+  "triggerCount": 0,
+  "versionId": "",
+  "env": [
+    {
+      "name": "FILE_ORGANIZER_API_URL",
+      "description": "URL of the File Organizer API",
+      "type": "string",
+      "default": "http://localhost:3333"
+    },
+    {
+      "name": "FILE_ORGANIZER_API_KEY",
+      "description": "API Key for the File Organizer API",
+      "type": "string"
+    },
+    {
+      "name": "WATCH_FOLDER",
+      "description": "Path to the folder to watch for new files",
+      "type": "string",
+      "default": "~/Downloads"
+    },
+    {
+      "name": "FILE_ORGANIZER_METHOD",
+      "description": "Method to organize files (extension, date, size)",
+      "type": "options",
+      "options": [
+        {
+          "name": "By Extension",
+          "value": "extension"
+        },
+        {
+          "name": "By Date",
+          "value": "date"
+        },
+        {
+          "name": "By Size",
+          "value": "size"
+        }
+      ],
+      "default": "extension"
+    },
+    {
+      "name": "NOTIFICATION_WEBHOOK_URL",
+      "description": "Webhook URL for notifications (optional)",
+      "type": "string"
+    }
+  ]
+} 

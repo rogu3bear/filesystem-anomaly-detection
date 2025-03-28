@@ -1,14 +1,32 @@
 import React, { useEffect, useState } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
-import { Box, CircularProgress } from '@mui/material';
+import { Box, CircularProgress, AppBar, Toolbar, Typography, Button } from '@mui/material';
 import { useAuthStore } from './store/authStore';
 import './App.css';
+import ConversationUI from './components/ConversationUI';
 
 // Lazy load pages
 const Layout = React.lazy(() => import('./components/Layout/Layout'));
 const Login = React.lazy(() => import('./pages/Auth/Login'));
 const Register = React.lazy(() => import('./pages/Auth/Register'));
-const Dashboard = React.lazy(() => import('./pages/Dashboard/Dashboard'));
+const Dashboard = () => {
+  return (
+    <Box sx={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
+      <AppBar position="static">
+        <Toolbar>
+          <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
+            Filesystem AI Assistant
+          </Typography>
+          <Button color="inherit">Settings</Button>
+          <Button color="inherit" onClick={authStore.logout}>Logout</Button>
+        </Toolbar>
+      </AppBar>
+      <Box sx={{ flexGrow: 1, overflow: 'hidden' }}>
+        <ConversationUI />
+      </Box>
+    </Box>
+  );
+};
 const AgentsList = React.lazy(() => import('./pages/Agents/AgentsList'));
 const AgentCreate = React.lazy(() => import('./pages/Agents/AgentCreate'));
 const AgentEdit = React.lazy(() => import('./pages/Agents/AgentEdit'));

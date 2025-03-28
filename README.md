@@ -1,3 +1,7 @@
+# Filesystem Anomaly Detection
+
+[NOTE] This release has restructured the project. The backend agent is now located in "n8n-agent-hub/backend" and the frontend in "n8n-agent-hub/frontend". Legacy files and directories have been removed and paths updated accordingly.
+
 # File Organizer AI Agent for n8n
 
 A complete solution for automatically organizing files using n8n and a custom AI agent, optimized for macOS.

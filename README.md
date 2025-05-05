@@ -42,7 +42,7 @@ The easiest way to get started is with our setup script:
 
 ```bash
 # Clone the repository
-git clone https://github.com/rogu3bear/FilesystemAnomalyDetection.git
+git clone https://github.com/rogu3bear/filesystem-anomaly-detection.git
 cd FilesystemAnomalyDetection
 
 # Run the setup script

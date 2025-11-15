@@ -99,6 +99,22 @@ class N8nService {
     return this.request('POST', `workflows/${id}/deactivate`);
   }
 
+  async executeWorkflow(id: string, data: any): Promise<any> {
+    try {
+      // Execute the workflow with the provided data
+      const result = await this.request('POST', `workflows/${id}/execute`, {
+        data: {
+          input: data
+        }
+      });
+
+      return result;
+    } catch (error: any) {
+      console.error(`Error executing workflow ${id}:`, error.message);
+      throw new Error(`Failed to execute workflow: ${error.message}`);
+    }
+  }
+
   // Credentials management
   async getCredentials(): Promise<N8nCredential[]> {
     return this.request('GET', 'credentials');
@@ -207,12 +223,276 @@ class N8nService {
 
     // Add tool nodes if needed based on the tool names
     if (tools.length > 0) {
-      // Logic to add tool nodes to the workflow
-      // This would be more complex in a real implementation
-      // For each tool, add the appropriate node and connection
+      const toolNodeMapping: Record<string, any> = {
+        'file_explorer': {
+          id: 'n8n-nodes-langchain.toolCode',
+          type: 'n8n-nodes-langchain.toolCode',
+          name: 'File Explorer Tool',
+          parameters: {
+            name: 'file_explorer',
+            description: 'Explore and search files in the filesystem',
+            code: `const fs = require('fs');
+const path = require('path');
+
+// File exploration functionality
+return {
+  list: (dir) => fs.readdirSync(dir),
+  read: (file) => fs.readFileSync(file, 'utf8'),
+  exists: (path) => fs.existsSync(path)
+};`
+          }
+        },
+        'database_query': {
+          id: 'n8n-nodes-langchain.toolCode',
+          type: 'n8n-nodes-langchain.toolCode',
+          name: 'Database Query Tool',
+          parameters: {
+            name: 'database_query',
+            description: 'Execute database queries and retrieve data',
+            code: `// Database query functionality
+// Connect to configured database and execute queries
+return { query: (sql) => ({ message: 'Query execution placeholder' }) };`
+          }
+        },
+        'web_request': {
+          id: 'n8n-nodes-langchain.toolHttpRequest',
+          type: 'n8n-nodes-langchain.toolHttpRequest',
+          name: 'Web Request Tool',
+          parameters: {
+            name: 'web_request',
+            description: 'Make HTTP requests to external APIs',
+            authentication: 'none'
+          }
+        },
+        'image_processing': {
+          id: 'n8n-nodes-langchain.toolCode',
+          type: 'n8n-nodes-langchain.toolCode',
+          name: 'Image Processing Tool',
+          parameters: {
+            name: 'image_processing',
+            description: 'Process and analyze images',
+            code: `// Image processing functionality
+return { analyze: (imagePath) => ({ message: 'Image analysis placeholder' }) };`
+          }
+        },
+        'data_transformation': {
+          id: 'n8n-nodes-langchain.toolCode',
+          type: 'n8n-nodes-langchain.toolCode',
+          name: 'Data Transformation Tool',
+          parameters: {
+            name: 'data_transformation',
+            description: 'Transform and manipulate data structures',
+            code: `// Data transformation functionality
+return {
+  transform: (data, format) => data,
+  convert: (data, to) => data
+};`
+          }
+        }
+      };
+
+      let xPosition = 700;
+      const yPosition = 300;
+      const toolConnections: any[] = [];
+
+      tools.forEach((toolName, index) => {
+        const toolTemplate = toolNodeMapping[toolName];
+        if (toolTemplate) {
+          const toolNode = {
+            ...toolTemplate,
+            typeVersion: 1,
+            position: [xPosition, yPosition + (index * 100)]
+          };
+
+          workflowTemplate.nodes.push(toolNode);
+          toolConnections.push({
+            node: toolTemplate.name,
+            type: 'ai_tool',
+            index: 0
+          });
+
+          xPosition += 250;
+        }
+      });
+
+      // Connect tools to AI Agent
+      if (toolConnections.length > 0) {
+        workflowTemplate.connections['AI Agent'] = {
+          ...workflowTemplate.connections['AI Agent'],
+          tools: [toolConnections]
+        };
+      }
     }
 
     return this.createWorkflow(workflowTemplate);
+  }
+
+  // Update agent workflow with new configuration
+  async updateAgentWorkflow(
+    workflowId: string,
+    name?: string,
+    prompt?: string,
+    model?: string,
+    tools?: string[],
+    memory?: boolean,
+    customVariables?: Record<string, string>
+  ): Promise<N8nWorkflow> {
+    // Get the current workflow
+    const currentWorkflow = await this.getWorkflow(workflowId);
+
+    // Update workflow name if provided
+    if (name) {
+      currentWorkflow.name = name;
+    }
+
+    // Update AI Agent node parameters
+    const agentNode = currentWorkflow.nodes.find(node => node.type === 'n8n-nodes-langchain.agent');
+    if (agentNode) {
+      if (prompt !== undefined) {
+        agentNode.parameters.options = agentNode.parameters.options || {};
+        agentNode.parameters.options.prompt = prompt;
+      }
+      if (memory !== undefined) {
+        agentNode.parameters.options = agentNode.parameters.options || {};
+        agentNode.parameters.options.memory = memory;
+      }
+    }
+
+    // Update Chat Model node parameters
+    const modelNode = currentWorkflow.nodes.find(node => node.type === 'n8n-nodes-langchain.chatModel');
+    if (modelNode && model !== undefined) {
+      modelNode.parameters.modelType = model.includes('openai') ? 'openAI' :
+                                       model.includes('google') ? 'googlePaLM' :
+                                       model.includes('anthropic') ? 'anthropic' : 'openAI';
+      modelNode.parameters.options = modelNode.parameters.options || {};
+      modelNode.parameters.options.model = model;
+    }
+
+    // Handle tool updates if provided
+    if (tools !== undefined) {
+      // Remove existing tool nodes
+      currentWorkflow.nodes = currentWorkflow.nodes.filter(node =>
+        !node.type.includes('tool') ||
+        node.type === 'n8n-nodes-langchain.agent'
+      );
+
+      // Remove tool connections from AI Agent
+      if (currentWorkflow.connections['AI Agent']) {
+        delete currentWorkflow.connections['AI Agent'].tools;
+      }
+
+      // Add new tool nodes using the same logic as createAgentWorkflow
+      if (tools.length > 0) {
+        const toolNodeMapping: Record<string, any> = {
+          'file_explorer': {
+            id: 'n8n-nodes-langchain.toolCode',
+            type: 'n8n-nodes-langchain.toolCode',
+            name: 'File Explorer Tool',
+            parameters: {
+              name: 'file_explorer',
+              description: 'Explore and search files in the filesystem',
+              code: `const fs = require('fs');
+const path = require('path');
+
+// File exploration functionality
+return {
+  list: (dir) => fs.readdirSync(dir),
+  read: (file) => fs.readFileSync(file, 'utf8'),
+  exists: (path) => fs.existsSync(path)
+};`
+            }
+          },
+          'database_query': {
+            id: 'n8n-nodes-langchain.toolCode',
+            type: 'n8n-nodes-langchain.toolCode',
+            name: 'Database Query Tool',
+            parameters: {
+              name: 'database_query',
+              description: 'Execute database queries and retrieve data',
+              code: `// Database query functionality
+// Connect to configured database and execute queries
+return { query: (sql) => ({ message: 'Query execution placeholder' }) };`
+            }
+          },
+          'web_request': {
+            id: 'n8n-nodes-langchain.toolHttpRequest',
+            type: 'n8n-nodes-langchain.toolHttpRequest',
+            name: 'Web Request Tool',
+            parameters: {
+              name: 'web_request',
+              description: 'Make HTTP requests to external APIs',
+              authentication: 'none'
+            }
+          },
+          'image_processing': {
+            id: 'n8n-nodes-langchain.toolCode',
+            type: 'n8n-nodes-langchain.toolCode',
+            name: 'Image Processing Tool',
+            parameters: {
+              name: 'image_processing',
+              description: 'Process and analyze images',
+              code: `// Image processing functionality
+return { analyze: (imagePath) => ({ message: 'Image analysis placeholder' }) };`
+            }
+          },
+          'data_transformation': {
+            id: 'n8n-nodes-langchain.toolCode',
+            type: 'n8n-nodes-langchain.toolCode',
+            name: 'Data Transformation Tool',
+            parameters: {
+              name: 'data_transformation',
+              description: 'Transform and manipulate data structures',
+              code: `// Data transformation functionality
+return {
+  transform: (data, format) => data,
+  convert: (data, to) => data
+};`
+            }
+          }
+        };
+
+        let xPosition = 700;
+        const yPosition = 300;
+        const toolConnections: any[] = [];
+
+        tools.forEach((toolName, index) => {
+          const toolTemplate = toolNodeMapping[toolName];
+          if (toolTemplate) {
+            const toolNode = {
+              ...toolTemplate,
+              typeVersion: 1,
+              position: [xPosition, yPosition + (index * 100)]
+            };
+
+            currentWorkflow.nodes.push(toolNode);
+            toolConnections.push({
+              node: toolTemplate.name,
+              type: 'ai_tool',
+              index: 0
+            });
+
+            xPosition += 250;
+          }
+        });
+
+        // Connect tools to AI Agent
+        if (toolConnections.length > 0 && currentWorkflow.connections['AI Agent']) {
+          currentWorkflow.connections['AI Agent'].tools = [toolConnections];
+        }
+      }
+
+      // Update workflow tags with new tools
+      currentWorkflow.tags = ['agent', ...(currentWorkflow.tags || []).filter(t => !['file_explorer', 'database_query', 'web_request', 'image_processing', 'data_transformation'].includes(t)), ...tools];
+    }
+
+    // Apply custom variables if provided (these would be used in workflow settings)
+    if (customVariables) {
+      currentWorkflow.settings = currentWorkflow.settings || {};
+      currentWorkflow.settings.customVariables = customVariables;
+    }
+
+    // Update the workflow in n8n
+    return this.updateWorkflow(workflowId, currentWorkflow);
   }
 }
 

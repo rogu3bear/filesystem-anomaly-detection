@@ -158,13 +158,16 @@ export const updateAgent = async (req: AuthRequest, res: Response, next: NextFun
       { new: true, runValidators: true }
     );
     
-    // Update the workflow in n8n
-    // This would be more complex in a real implementation
-    // For now, we'll just update the basic workflow details
-    await n8nService.updateWorkflow(agent.n8nWorkflowId, {
-      name: name || agent.name,
-      // Other workflow updates would go here
-    });
+    // Update the workflow in n8n with all configuration parameters
+    await n8nService.updateAgentWorkflow(
+      agent.n8nWorkflowId,
+      name,
+      prompt,
+      model,
+      tools,
+      memory,
+      customVariables
+    );
     
     res.status(200).json({
       success: true,
@@ -306,15 +309,40 @@ export const executeAgent = async (req: AuthRequest, res: Response, next: NextFu
       return next(error);
     }
     
-    // For direct execution, we'd need to trigger the n8n workflow
-    // This is a simplified implementation
-    // In a real application, you'd make a proper API call to the workflow
-    const result = `Response from agent: ${agent.name} - This is a simulated response. In a real implementation, this would call the agent's n8n workflow with the input: ${input}`;
-    
-    // Update agent stats
+    // Execute the n8n workflow with the provided input
+    const startTime = Date.now();
+    let executionSuccess = true;
+    let result;
+
+    try {
+      const workflowResult = await n8nService.executeWorkflow(agent.n8nWorkflowId, input);
+      result = workflowResult;
+    } catch (error: any) {
+      executionSuccess = false;
+      result = {
+        error: true,
+        message: `Workflow execution failed: ${error.message}`
+      };
+    }
+
+    const executionTime = Date.now() - startTime;
+
+    // Calculate new average execution time and success rate
+    const currentExecutions = agent.stats.executionsCount;
+    const newExecutionCount = currentExecutions + 1;
+    const newAverageTime = ((agent.stats.averageExecutionTime * currentExecutions) + executionTime) / newExecutionCount;
+    const currentSuccessCount = Math.floor((agent.stats.successRate / 100) * currentExecutions);
+    const newSuccessCount = currentSuccessCount + (executionSuccess ? 1 : 0);
+    const newSuccessRate = (newSuccessCount / newExecutionCount) * 100;
+
+    // Update agent stats with execution metrics
     await Agent.findByIdAndUpdate(req.params.id, {
       $inc: { 'stats.executionsCount': 1 },
-      $set: { 'stats.lastExecution': new Date() }
+      $set: {
+        'stats.lastExecution': new Date(),
+        'stats.averageExecutionTime': Math.round(newAverageTime),
+        'stats.successRate': Math.round(newSuccessRate * 100) / 100
+      }
     });
     
     res.status(200).json({
